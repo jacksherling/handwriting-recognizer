@@ -5,6 +5,7 @@ const trainingInput = document.getElementById("training");
 const letterInput = document.getElementById("letter");
 const delay = 50;
 const clearButton = document.getElementById("clear");
+const output = document.getElementById("out");
 
 let drawing = false;
 let interval = null;
@@ -13,7 +14,7 @@ let training = false;
 
 trainingInput.onchange = e => {
     training = trainingInput.checked;
-    console.log(training);
+    output.innerText = training ? 'Training mode activated. Any letters drawn will be contributed to local model accuracy. Write carefully!' : 'Draw a letter and a let the model predict!';
 }
 
 let x, y;
@@ -23,7 +24,6 @@ let xVels = [];
 let yVels = [];
 
 let lettersData = window.localStorage.lettersData ? JSON.parse(window.localStorage.lettersData) : [];
-console.log(lettersData)
 
 clearButton.onclick = e => {
     window.localStorage.lettersData = "";
@@ -38,8 +38,6 @@ canvas.onmousedown = e => {
     yVels = [];
     ctx.fillStyle = "#FF0000";
     ctx.fillRect(x, y, 5, 5);
-
-
     drawing = true;
 }
 
@@ -47,7 +45,8 @@ canvas.onmouseup = e => {
     drawing = false;
     lastX = lastY = null;
     if (training) {
-        let letter = lettersData.find(l => l.letter == letterInput.value);
+        let letterIndex = lettersData.findIndex(l => l.letter == letterInput.value);
+        let letter = lettersData[letterIndex];
         if (letter) {
             letter.initialData[0].push(xVels);
             letter.initialData[1].push(yVels);
@@ -58,8 +57,10 @@ canvas.onmouseup = e => {
                 initialData: [[xVels], [yVels]]
             }
             lettersData.push(letter);
+            letterIndex = lettersData.length - 1;
         }
-        trainAll();
+        // trainAll();
+        lettersData[letterIndex] = trainLetter(lettersData[letterIndex]);
         window.localStorage.lettersData = JSON.stringify(lettersData);
     }
     let prob = -1
@@ -68,14 +69,14 @@ canvas.onmouseup = e => {
         let pX = viterbi(xVels, data.stateCount[0], data.transitionProbs[0], data.emissionProbs[0])
         let pY =  viterbi(yVels, data.stateCount[1], data.transitionProbs[1], data.emissionProbs[1])
         let p = pX * pY;
-        console.log(p, pX, pY)
         if (p > prob) {
             prob = p;
             letter = data.letter;
         }
     });
+    output.innerText = training ?  `Training on ${letter}... uncheck box for prediction` : `Model predicts ${letter}`
+
     if (!training)
-        console.log(letter)
     if (interval) {
         clearInterval(interval);
         interval = null;
@@ -113,7 +114,7 @@ canvas.onmousemove = e => {
 
 }
 
-function ms (array) {
+function meanAndStd (array) {
     const n = array.length
     const mean = array.reduce((a, b) => a + b) / n
     const std = Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
@@ -142,7 +143,7 @@ function ms (array) {
             for (let j = 0; j < data.length; j++) {
                 totalState.push(...data[j][i])
             }
-            curMs.push(ms(totalState))
+            curMs.push(meanAndStd(totalState))
         }
 
         data = data.map(d => {
@@ -213,25 +214,25 @@ function viterbi(evidence, stateCount, transitionProbs, emissionParams) {
     let T = evidence.length;
     let K = stateCount;
 
-    let t1 = [];
+    let table = [];
     for (let i = 0; i < stateCount; i++) {
-        t1.push(new Array(T).fill(0));
+        table.push(new Array(T).fill(0));
     }
     for (let j = 0; j < T; j++) {
         for (let i = 0; i < K; i++) {
             let eProb = gauss(evidence[j], emissionParams[i]);
             if (j == 0) {
-                t1[i][j] = eProb;
+                table[i][j] = eProb;
                 continue;
             }
-            let bestProb = Math.max(t1[i][j - 1] * transitionProbs[i][1], i != 0 ? t1[i - 1][j - 1] * transitionProbs[i - 1][0] : -1) * eProb;
-            t1[i][j] = bestProb;
+            let bestProb = Math.max(table[i][j - 1] * transitionProbs[i][1], i != 0 ? table[i - 1][j - 1] * transitionProbs[i - 1][0] : -1) * eProb;
+            table[i][j] = bestProb;
         }
     }
 
     for (let i = 0; i < K; i++) {
-        if (t1[i][T - 1] > probability) {
-            probability = t1[i][T - 1];
+        if (table[i][T - 1] > probability) {
+            probability = table[i][T - 1];
         }
     }
     return probability;
