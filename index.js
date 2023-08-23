@@ -59,15 +59,14 @@ canvas.onmouseup = e => {
             lettersData.push(letter);
             letterIndex = lettersData.length - 1;
         }
-        // trainAll();
         lettersData[letterIndex] = trainLetter(lettersData[letterIndex]);
         window.localStorage.lettersData = JSON.stringify(lettersData);
     }
     let prob = -1
     let letter;
     lettersData.forEach(data => {
-        let pX = viterbi(xVels, data.stateCount[0], data.transitionProbs[0], data.emissionProbs[0])
-        let pY =  viterbi(yVels, data.stateCount[1], data.transitionProbs[1], data.emissionProbs[1])
+        let pX = getProbability(xVels, data.stateCount[0], data.transitionProbs[0], data.emissionProbs[0])
+        let pY =  getProbability(yVels, data.stateCount[1], data.transitionProbs[1], data.emissionProbs[1])
         let p = pX * pY;
         if (p > prob) {
             prob = p;
@@ -205,13 +204,12 @@ function meanAndStd (array) {
 function gauss(num, ms) {
     let mean = ms[0];
     let std = ms[1];
-    let exp = Math.exp((-0.5) * (num - mean) ** 2 / (std ** 2))
-    return (2 * Math.PI * std ** 2) ** (-0.5) * exp;
+    return (2 * Math.PI * std ** 2) ** (-0.5) * Math.exp((-0.5) * (num - mean) ** 2 / (std ** 2));
 }
 
-function viterbi(evidence, stateCount, transitionProbs, emissionParams) {
+function getProbability(vels, stateCount, transitionProbs, emissionParams) {
     let probability = 0.0;
-    let T = evidence.length;
+    let T = vels.length;
     let K = stateCount;
 
     let table = [];
@@ -220,7 +218,7 @@ function viterbi(evidence, stateCount, transitionProbs, emissionParams) {
     }
     for (let j = 0; j < T; j++) {
         for (let i = 0; i < K; i++) {
-            let eProb = gauss(evidence[j], emissionParams[i]);
+            let eProb = gauss(vels[j], emissionParams[i]);
             if (j == 0) {
                 table[i][j] = eProb;
                 continue;
